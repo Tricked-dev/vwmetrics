@@ -13,7 +13,7 @@ static DB_PATH: Lazy<String> = Lazy::new(|| {
         .unwrap_or_else(|_| env::var("DB_PATH").unwrap_or_else(|_| "db.sqlite3".to_string()))
 });
 
-/// Turn a vaulwarden database into a metrics api endpoint.
+/// Turn a Vaultwarden database into a metrics api endpoint.
 async fn main_program() -> Result<(), Box<dyn Error + Send + Sync>> {
     let update_secs = env::var("UPDATE_SECS")
         .unwrap_or_else(|_| "60".to_string())
