@@ -12,7 +12,8 @@ static DB_PATH: Lazy<String> = Lazy::new(|| {
     env::var("DB_PATH")
         .unwrap_or_else(|_| env::var("DB_PATH").unwrap_or_else(|_| "db.sqlite3".to_string()))
 });
-/// turn a vaulwarden database into a metrics api endpoint
+
+/// Turn a vaulwarden database into a metrics api endpoint.
 async fn main_program() -> Result<(), Box<dyn Error + Send + Sync>> {
     let update_secs = env::var("UPDATE_SECS")
         .unwrap_or_else(|_| "60".to_string())
@@ -55,7 +56,12 @@ async fn handle(_req: Request<hyper::Body>) -> Result<Response<Body>, Infallible
 
 fn update_metrics() -> Result<(), Box<dyn Error + Send + Sync>> {
     use rusqlite::OpenFlags;
-    let conn = rusqlite::Connection::open_with_flags(&*DB_PATH, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI | OpenFlags::SQLITE_OPEN_NO_MUTEX)?;
+    let conn = rusqlite::Connection::open_with_flags(
+        &*DB_PATH,
+        OpenFlags::SQLITE_OPEN_READ_ONLY
+            | OpenFlags::SQLITE_OPEN_URI
+            | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )?;
     let data = get_data(&conn)?;
     let mut metrics = String::new();
     for (key, value) in data {
@@ -78,30 +84,36 @@ where
 
 fn get_data(conn: &Connection) -> Result<HashMap<String, usize>, Box<dyn Error + Send + Sync>> {
     let mut res = HashMap::new();
+
     macro_rules! method_new {
-        ($ret:ident) => {
-            let $ret = conn.query_row(stringify!(SELECT count(*) FROM $ret), (), |row| row.get(0))?;
-            res.insert(stringify!($ret).to_string(), $ret);
+        ($($ret:ident),*) => {
+            $(
+                let $ret = conn.query_row(stringify!(SELECT count(*) FROM $ret), (), |row| row.get(0))?;
+                res.insert(stringify!($ret).to_string(), $ret);
+            )*
         };
     }
-    method_new!(attachments);
-    method_new!(ciphers);
-    method_new!(ciphers_collections);
-    method_new!(collections);
-    method_new!(devices);
-    method_new!(emergency_access);
-    method_new!(favorites);
-    method_new!(folders);
-    method_new!(folders_ciphers);
-    method_new!(invitations);
-    method_new!(org_policies);
-    method_new!(organizations);
-    method_new!(sends);
-    method_new!(twofactor);
-    method_new!(twofactor_incomplete);
-    method_new!(users);
-    method_new!(users_collections);
-    method_new!(users_organizations);
+
+    method_new!(
+        attachments,
+        ciphers,
+        ciphers_collections,
+        collections,
+        devices,
+        emergency_access,
+        favorites,
+        folders,
+        folders_ciphers,
+        invitations,
+        org_policies,
+        organizations,
+        sends,
+        twofactor,
+        twofactor_incomplete,
+        users,
+        users_collections,
+        users_organizations
+    );
 
     Ok(res)
 }
