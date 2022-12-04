@@ -50,7 +50,7 @@ jobs:
           - {
               target: aarch64-unknown-linux-gnu,
               pretty: aarch64-backend,
-              args: --features rusqlite/bundled,
+              args: "",
             }
     steps:
       - uses: actions/checkout@v3
