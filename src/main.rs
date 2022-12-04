@@ -35,7 +35,7 @@ async fn main_program() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // And run forever...
     if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
+        eprintln!("server error: {e}");
     }
 
     Ok(())
@@ -54,13 +54,14 @@ async fn handle(_req: Request<hyper::Body>) -> Result<Response<Body>, Infallible
 }
 
 fn update_metrics() -> Result<(), Box<dyn Error + Send + Sync>> {
-    let conn = rusqlite::Connection::open(&*DB_PATH)?;
+    use rusqlite::OpenFlags;
+    let conn = rusqlite::Connection::open_with_flags(&*DB_PATH, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI | OpenFlags::SQLITE_OPEN_NO_MUTEX)?;
     let data = get_data(&conn)?;
     let mut metrics = String::new();
     for (key, value) in data {
         metrics.push_str(&prometheus_stat(
             &format!("The number of {key}"),
-            &format!("vaultwarden_{key}_count", key = key),
+            &format!("vaultwarden_{key}_count"),
             value,
         ));
     }
