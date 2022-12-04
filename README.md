@@ -12,3 +12,5 @@ The metrics endpoint gets started on `127.0.0.1:3040/metrics` (this cannot be ch
 ## Example output
 
 ![](.github/pics/pic.png)
+
+[![](.github/pics/prev.png)](./.github/dash.json)
