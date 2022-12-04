@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::Infallible, error::Error, sync::Mutex, thread};
+use std::{collections::HashMap, convert::Infallible, env, error::Error, sync::Mutex, thread};
 
 use hyper::{
     service::{make_service_fn, service_fn},
@@ -8,11 +8,18 @@ use once_cell::sync::Lazy;
 use rusqlite::Connection;
 
 static METRICS: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
-
+static DB_PATH: Lazy<String> = Lazy::new(|| {
+    env::var("DB_PATH")
+        .unwrap_or_else(|_| env::var("DB_PATH").unwrap_or_else(|_| "db.sqlite3".to_string()))
+});
 /// turn a vaulwarden database into a metrics api endpoint
 async fn main_program() -> Result<(), Box<dyn Error + Send + Sync>> {
-    tokio::spawn(async {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+    let update_secs = env::var("UPDATE_SECS")
+        .unwrap_or_else(|_| "60".to_string())
+        .parse::<u64>()
+        .unwrap();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(update_secs));
         loop {
             interval.tick().await;
             thread::spawn(update_metrics);
@@ -47,7 +54,7 @@ async fn handle(_req: Request<hyper::Body>) -> Result<Response<Body>, Infallible
 }
 
 fn update_metrics() -> Result<(), Box<dyn Error + Send + Sync>> {
-    let conn = rusqlite::Connection::open("db.sqlite3")?;
+    let conn = rusqlite::Connection::open(&*DB_PATH)?;
     let data = get_data(&conn)?;
     let mut metrics = String::new();
     for (key, value) in data {
