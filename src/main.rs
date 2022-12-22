@@ -118,7 +118,7 @@ pub fn prometheus_stat<T>(help: &str, name: &str, value: T) -> String
 where
     T: std::fmt::Display,
 {
-    format!("# HELP {name} {help}\n# TYPE {name} guage\n{name} {value}\n")
+    format!("# HELP {name} {help}\n# TYPE {name} gauge\n{name} {value}\n")
 }
 type CountInt = i32;
 async fn get_data(
@@ -132,11 +132,13 @@ async fn get_data(
         ($($ret:ident),*) => {
             $(
                 // does not work without casting on postgresql
-                let $ret: CountInt = sqlx::query_as::<_, (CountInt,)>(stringify!(SELECT CAST(count(*) as integer) FROM $ret))
-                    .fetch_one(&mut tx)
-                    .await?
-                    .0;
-                res.insert(stringify!($ret).to_string(), $ret);
+                res.insert(
+                    stringify!($ret).to_string(),
+                    sqlx::query_as::<_, (CountInt,)>(stringify!(SELECT CAST(count(*) as integer) FROM $ret))
+                        .fetch_one(&mut tx)
+                        .await?
+                        .0,
+                );
             )*
         };
     }
