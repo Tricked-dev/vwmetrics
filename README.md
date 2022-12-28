@@ -46,6 +46,27 @@ Options:
 
 The metrics endpoint gets started on `127.0.0.1:3040/metrics` by default.
 
+### systemd
+
+```init
+# /home/<user>/.config/systemd/user/vwmetrics.service
+[Unit]
+Description=vwmetrics 
+After=network.target
+
+[Service]
+ExecStart=/home/<user>/vwmetrics/vwmetrics
+Environment="UPDATE_SECS=7200"
+Environment="DATABASE_UR=query string"
+Type=simple
+Restart=always
+WorkingDirectory=/home/<user>/vwmetrics
+
+[Install]
+WantedBy=default.target
+RequiredBy=network.target
+```
+
 ## Example output
 
 ![](.github/pics/pic.png)
