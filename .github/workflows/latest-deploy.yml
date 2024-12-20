@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+      #- main
+      #- 'v*.*.*'
   workflow_dispatch:
   schedule:
     - cron: '00 4 01 * *'  # At 04:00 on day-of-month 01.
@@ -21,7 +23,8 @@ jobs:
           echo "github_repo=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
           echo "build_branch=$(echo ${GITHUB_REF#refs/heads/})" >> "$GITHUB_ENV"
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
-          echo "build_commit_sha=$(git rev-parse --short "$GITHUB_SHA")" >> "$GITHUB_ENV"
+          #echo "build_commit_sha=$(git rev-parse --short "$GITHUB_SHA")" >> "$GITHUB_ENV"
+          echo "build_commit_sha=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

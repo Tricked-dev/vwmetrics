@@ -25,9 +25,9 @@ LABEL org.opencontainers.image.title="VWMetrics" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.source="https://github.com/Tricked-dev/vwmetrics"
 
-COPY --from=builder --chown=www-data:www-data /usr/src/vwmetrics/target/release/vwmetrics /usr/local/bin/vwmetrics
+COPY --from=builder --chown=nobody:nogroup /usr/src/vwmetrics/target/release/vwmetrics /usr/local/bin/vwmetrics
 
-USER www-data
+USER nobody
 
 ENV HOST=0.0.0.0 PORT=3040
 
