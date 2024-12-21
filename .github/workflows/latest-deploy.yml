@@ -4,25 +4,56 @@ on:
   push:
     branches:
       - master
+      #- main
+      #- 'v*.*.*'
+  workflow_dispatch:
+  schedule:
+    - cron: '00 4 01 * *'  # At 04:00 on day-of-month 01.
 
 jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Script
+        shell: bash
+        run: |
+          echo "github_repo=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+          echo "build_branch=$(echo ${GITHUB_REF#refs/heads/})" >> "$GITHUB_ENV"
+          echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+          #echo "build_commit_sha=$(git rev-parse --short "$GITHUB_SHA")" >> "$GITHUB_ENV"
+          echo "build_commit_sha=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          image: tonistiigi/binfmt:latest
+          platforms: all
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build containers
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v6
         with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/tricked-dev/vwmetrics:latest
+          build-args: |
+            BUILD_VERSION=${{ env.build_branch }}
+            BUILD_DATE=${{ env.build_date }}
+            BUILD_COMMIT_SHA=${{ env.build_commit_sha }}
+          tags: |
+            ghcr.io/${{ env.github_repo }}:latest
+            ghcr.io/${{ env.github_repo }}:${{ env.build_commit_sha }}
+          #  ghcr.io/${{ env.github_repo }}:${{ env.build_branch }}
