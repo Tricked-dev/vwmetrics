@@ -1,14 +1,16 @@
-use std::{collections::HashMap, convert::Infallible, error::Error, sync::Mutex};
+use std::{collections::HashMap, sync::Mutex};
 
+use anyhow::Result;
 use clap::Parser;
-use hyper::{
-    service::{make_service_fn, service_fn},
-    Body, Request, Response, Server,
-};
+use code::http1_server;
 use once_cell::sync::Lazy;
 use sqlx::{Any, AnyPool, Pool};
-use tracing::{debug, info};
+use tokio::task;
+use tracing::debug;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+mod code;
+pub mod support;
 
 static METRICS: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 
@@ -33,8 +35,18 @@ struct Cli {
     #[clap(short, long, env, default_value = "60")]
     update_seconds: u64,
 }
-/// Turn a Vaultwarden database into a metrics api endpoint.
-async fn main_program() -> Result<(), Box<dyn Error + Send + Sync>> {
+
+#[tokio::main(flavor = "current_thread")]
+#[allow(clippy::needless_return)]
+async fn main() -> Result<()> {
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::new(
+            std::env::var("RUST_LOG")
+                .unwrap_or_else(|_| "error,vwmetrics=warn,debug,info,sqlx=warn".into()),
+        ))
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
     let cli = Cli::parse();
     let db_url = match cli.database_url.clone() {
         url if url.starts_with("sqlite://") && !url.contains("?mode=ro") => {
@@ -46,56 +58,35 @@ async fn main_program() -> Result<(), Box<dyn Error + Send + Sync>> {
         url => url,
     };
 
-    tokio::spawn(async move {
+    sqlx::any::install_default_drivers();
+    let local = task::LocalSet::new();
+
+    local.spawn_local(async move {
         let mut interval =
             tokio::time::interval(std::time::Duration::from_secs(cli.update_seconds));
         loop {
             interval.tick().await;
             if let Err(e) = update_metrics(&db_url).await {
                 tracing::error!("Error updating metrics: {}", e);
+                panic!("Exiting program due to panic!")
             }
         }
     });
 
     let addr = format!("{}:{}", cli.host, cli.port).parse()?;
-
-    let make_service = make_service_fn(|_conn| async { Ok::<_, Infallible>(service_fn(handle)) });
-
-    let server = Server::bind(&addr).serve(make_service);
-
-    if let Err(e) = server.await {
-        eprintln!("server error: {e}");
-    }
-
+    local
+        .run_until(async move {
+            let output = http1_server(addr).await;
+            if let Err(e) = output {
+                tracing::error!("Error in http server: {}", e);
+                panic!("Exiting program due to panic!")
+            }
+        })
+        .await;
     Ok(())
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG")
-                .unwrap_or_else(|_| "error,vwmetrics=warn,debug,info,sqlx=warn".into()),
-        ))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-
-    // doing it this way gives better development errors
-    main_program().await
-}
-
-async fn handle(req: Request<hyper::Body>) -> Result<Response<Body>, Infallible> {
-    info!(
-        target: "request",
-        method = ?req.method(),
-        uri = ?req.uri(),
-        user_agent = ?req.headers().get("user-agent"),
-    );
-
-    Ok(Response::new(Body::from(METRICS.lock().unwrap().clone())))
-}
-
-async fn update_metrics(db_url: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+async fn update_metrics(db_url: &str) -> Result<()> {
     // reconnect every time to make sqlite work when the database has been overwritten by another program.
     let pool = AnyPool::connect(db_url).await?;
 
@@ -121,12 +112,9 @@ where
     format!("# HELP {name} {help}\n# TYPE {name} gauge\n{name} {value}\n")
 }
 type CountInt = i32;
-async fn get_data(
-    pool: &Pool<Any>,
-) -> Result<HashMap<String, CountInt>, Box<dyn Error + Send + Sync>> {
+async fn get_data(pool: &Pool<Any>) -> Result<HashMap<String, CountInt>, anyhow::Error> {
     let mut res = HashMap::new();
 
-    let mut tx = pool.begin().await?;
     debug!("Getting data from database");
     macro_rules! method_new {
         ($($ret:ident),*) => {
@@ -135,7 +123,7 @@ async fn get_data(
                 res.insert(
                     stringify!($ret).to_string(),
                     sqlx::query_as::<_, (CountInt,)>(stringify!(SELECT CAST(count(*) as integer) FROM $ret))
-                        .fetch_one(&mut tx)
+                        .fetch_one(pool)
                         .await?
                         .0,
                 );
@@ -163,7 +151,6 @@ async fn get_data(
         users_collections,
         users_organizations
     );
-    tx.commit().await?;
     debug!("Got data from database");
     Ok(res)
 }
