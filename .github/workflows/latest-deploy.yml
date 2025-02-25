@@ -56,4 +56,3 @@ jobs:
           tags: |
             ghcr.io/${{ env.github_repo }}:latest
             ghcr.io/${{ env.github_repo }}:${{ env.build_commit_sha }}
-          #  ghcr.io/${{ env.github_repo }}:${{ env.build_branch }}
