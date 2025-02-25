@@ -1,3 +1,4 @@
+use hyper::header::{HeaderValue, CONTENT_TYPE};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
@@ -57,7 +58,13 @@ pub async fn http1_server(addr: SocketAddr) -> Result<(), Box<dyn std::error::Er
                 user_agent = ?req.headers().get("user-agent"),
             );
 
-            async move { Ok::<_, Error>(Response::new(Body::from(METRICS.lock().unwrap().clone()))) }
+            let mut response = Response::new(Body::from(METRICS.lock().unwrap().clone()));
+            response.headers_mut().insert(
+                CONTENT_TYPE,
+                HeaderValue::from_static("text/plain; version=0.0.4"),
+            );
+
+            async move { Ok::<_, Error>(response) }
         });
 
         tokio::task::spawn_local(async move {
