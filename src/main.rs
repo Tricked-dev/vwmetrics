@@ -1,16 +1,16 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::{collections::BTreeMap, sync::Mutex};
 
 use anyhow::Result;
 use clap::Parser;
-use code::http1_server;
 use once_cell::sync::Lazy;
 use sqlx::{Any, AnyPool, Pool};
 use tokio::task;
 use tracing::debug;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use web_server::http1_server;
 
-mod code;
 pub mod support;
+mod web_server;
 
 static METRICS: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 
@@ -112,21 +112,27 @@ where
     format!("# HELP {name} {help}\n# TYPE {name} gauge\n{name} {value}\n")
 }
 type CountInt = i32;
-async fn get_data(pool: &Pool<Any>) -> Result<HashMap<String, CountInt>, anyhow::Error> {
-    let mut res = HashMap::new();
+async fn get_data(pool: &Pool<Any>) -> Result<BTreeMap<String, CountInt>, anyhow::Error> {
+    let mut res = BTreeMap::new();
 
     debug!("Getting data from database");
     macro_rules! method_new {
         ($($ret:ident),*) => {
             $(
                 // does not work without casting on postgresql
-                res.insert(
-                    stringify!($ret).to_string(),
-                    sqlx::query_as::<_, (CountInt,)>(stringify!(SELECT CAST(count(*) as integer) FROM $ret))
+                let result = sqlx::query_as::<_, (CountInt,)>(stringify!(SELECT CAST(count(*) as integer) FROM $ret))
                         .fetch_one(pool)
-                        .await?
-                        .0,
-                );
+                        .await;
+
+                match result {
+                    Ok(data) => {
+                        res.insert(
+                            stringify!($ret).to_string(),
+                            data.0
+                        );
+                    },
+                    Err(e) => tracing::error!("Error while fetching data {e:?}")
+                }
             )*
         };
     }
@@ -141,8 +147,11 @@ async fn get_data(pool: &Pool<Any>) -> Result<HashMap<String, CountInt>, anyhow:
         favorites,
         folders,
         folders_ciphers,
+        groups,
+        groups_users,
         invitations,
         org_policies,
+        organization_api_key,
         organizations,
         sends,
         twofactor,
