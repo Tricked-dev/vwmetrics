@@ -61,7 +61,7 @@ jobs:
           command: build
           args: --release --target ${{ matrix.job.target }} ${{ matrix.job.args }}
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: vwmetrics-${{ matrix.job.pretty }}
           path: target/${{ matrix.job.target }}/release/vwmetrics
