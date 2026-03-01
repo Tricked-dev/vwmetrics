@@ -7,7 +7,7 @@ description = "Turn your Vaultwarden database into Prometheus metrics"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-clap = { version = "4.5.56", features = ["derive", "cargo", "env"] }
+clap = { version = "4.5.60", features = ["derive", "cargo", "env"] }
 hyper = { version = "1", features = ["server", "http1", "http2"] }
 once_cell = "1.21.3"
 tokio = { version = "1.49.0", features = [
@@ -31,9 +31,9 @@ tracing-subscriber = { version = "0.3.22", features = [
     "tracing",
     "env-filter",
 ] }
-pin-project-lite = "0.2.16"
+pin-project-lite = "0.2.17"
 http-body-util = "0.1.3"
-anyhow = "1.0.100"
+anyhow = "1.0.102"
 
 [profile.release]
 opt-level = "z"
